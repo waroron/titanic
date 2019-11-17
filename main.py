@@ -98,6 +98,12 @@ def get_null_index(data):
     return null_index
 
 
+def use_gpu(e):
+    if torch.cuda.is_available():
+        return e.cuda()
+    return e
+
+
 def preprocess_for_trainingdata(train_x, train_y):
     # とりあえず一つでも欠損していればそのデータは有効にしないようにする
     # train_x = train_x.values
@@ -132,7 +138,6 @@ def train(model, loss_func, optimizer, trX, trY):
 
 
 def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20):
-
     train_ = data.TensorDataset(torch.from_numpy(train_x).float(),
                                 torch.from_numpy(train_y).float())
     train_iter = torch.utils.data.DataLoader(train_, batch_size=batch_size, shuffle=True)
@@ -142,14 +147,18 @@ def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20
 
     torch.manual_seed(1)
     for epoch in range(1, epochs + 1):
+        model = use_gpu(model)
         model.train()
         loss = 0
         for i, train_data in enumerate(train_iter):
             inputs, labels = train_data
+            inputs = use_gpu(inputs)
+            labels = use_gpu(labels)
             loss += train(model, criterion, optimizer, inputs, labels)
         print(f'epoch {epoch}: loss {loss / batch_size}')
 
         if epoch % eval_num == 0:
+            model.cpu()
             model.eval()
             eval = model.pred(train_x)
             eval = np.round(eval)
@@ -166,15 +175,16 @@ def training_LNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_for_trainingdata(train_x, train_y)
     model = LNN(7, 1)
-    training(model, train_x.values, train_y.values, 500, 32, 'models/lnn/', eval_num=2)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/lnn/', eval_num=50)
 
 
 def training_BNLNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_for_trainingdata(train_x, train_y)
     model = BNLNN(7, 1)
-    training(model, train_x.values, train_y.values, 500, 32, 'models/bnlnn/', eval_num=2)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn/', eval_num=50)
 
 
 if __name__ == '__main__':
+    training_LNN()
     training_BNLNN()
