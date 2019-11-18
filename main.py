@@ -104,7 +104,7 @@ def use_gpu(e):
     return e
 
 
-def preprocess_for_trainingdata(train_x, train_y):
+def remove_nan_preprocess(train_x, train_y):
     # とりあえず一つでも欠損していればそのデータは有効にしないようにする
     # train_x = train_x.values
     null_index = get_null_index(train_x)
@@ -123,6 +123,76 @@ def preprocess_for_trainingdata(train_x, train_y):
     train_x = train_x.replace('S', S)
     train_x = train_x.replace('C', C)
 
+    return train_x, train_y
+
+
+def preprocess_from_startup(train_x, train_y):
+    """
+    https://www.kaggle.com/startupsci/titanic-data-science-solutions
+    で記述されているようなデータの前処理を行う．
+
+    :param train_x:
+    :param train_y:
+    :return:
+    """
+    # カテゴリ変数のマッピングについては，survivedに対する相関係数順にするほうがいい気がする
+    gender_mapping = {'male': 1, 'female': 0}
+    title_mapping = {"Mr": 1, "Miss": 2, "Mrs": 3, "Master": 4, "Rare": 5}
+    embarkation_mapping = {'S': 0, 'C': 1, 'Q': 2}
+
+    # Ticketsは，相関性が見込めないため入力データには適していない
+    # Cabinは，欠損データが多く，入力データには適していない
+    # PassengerIdは，survivedに対して相関がほぼ無いため，予測に適していない．
+    # -->これらは無効にする
+    # train_x = train_x.drop(['PassengerId', 'Tickets', 'Cabin'], axis=1)
+
+    # Title(敬称)から，新たに特徴量を生成にする
+    train_x['Title'] = train_x.Name.str.extract('([A-Za-z]+)\.', expand=False)
+    # 少数の敬称は全てRareで統一する
+    train_x['Title'] = train_x['Title'].replace(['Lady', 'Countess', 'Capt', 'Col',
+                                           'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+    # 変形しているだけで同じ意味のものを変換しておく
+    train_x['Title'] = train_x['Title'].replace('Mlle', 'Miss')
+    train_x['Title'] = train_x['Title'].replace('Ms', 'Miss')
+    train_x['Title'] = train_x['Title'].replace('Mme', 'Mrs')
+    train_x['Title'] = train_x['Title'].map(title_mapping)
+    train_x['Title'] = train_x['Title'].fillna(0)
+
+    # 性別を数値データにマッピング
+    train_x['Sex'] = train_x['Sex'].map(gender_mapping)
+
+    # Nameは使用しないためdrop
+    train_x = train_x.drop(['Name'], axis=1)
+
+    # Ageの欠損値を，genderとPclass別の中央値で補完する
+    for i in range(0, 2):
+        for j in range(0, 3):
+            current_df = train_x[np.logical_and(train_x['Sex'] == i, train_x['Pclass'] == j + 1)]
+            guess_df = current_df['Age'].dropna()
+            med = np.round(np.median(guess_df))
+            # print(current_df['Age'].isnull().va)
+            # train_x.loc[train_x[np.logical_and(train_x['Sex'] == i, train_x['Pclass'] == j + 1)]
+            #             ['Age'].isnull(), 'Age'] = med
+            train_x.loc[(train_x.Age.isnull()) & (train_x.Sex == i) & (train_x.Pclass == j + 1), \
+                        'Age'] = med
+
+    # 年齢層を示す特徴量Agebandを定義
+    # train_x['AgeBand'] = pd.cut(train_x['Age'], 5)
+    # 特徴量FareBandを定義する
+    # train_x['FareBand'] = pd.cut(train_x['Fare'], 4)
+
+    # 家族の人数を示す特徴量FamilySizeを定義する
+    # Parchは正の相関，SibSpは負の相関をsurvivedに対して持つため，parch + sibspはどうなんだろ
+    # FamilySizeにしてしまったことで，相関係数の絶対値が小さくなるけど...
+    train_x['FamilySize'] = train_x['Parch'] + train_x['SibSp'] + 1
+
+    # Embarkedの欠損値を，最頻値で補完する
+    train_x['Embarked'] = train_x['Embarked'].map(embarkation_mapping)
+    embarkation_mode = train_x['Embarked'].dropna().mode()[0]
+    train_x['Embarked'] =train_x['Embarked'].fillna(embarkation_mode)
+
+    # Fareの欠損値を，中央値で補完にする
+    train_x['Fare'] = train_x['Fare'].fillna(train_x['Fare'].median())
     return train_x, train_y
 
 
@@ -173,18 +243,33 @@ def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20
 
 def training_LNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
-    train_x, train_y = preprocess_for_trainingdata(train_x, train_y)
+    train_x, train_y = remove_nan_preprocess(train_x, train_y)
     model = LNN(7, 1)
     training(model, train_x.values, train_y.values, 500, 128, 'models/lnn/', eval_num=50)
 
 
 def training_BNLNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
-    train_x, train_y = preprocess_for_trainingdata(train_x, train_y)
+    train_x, train_y = remove_nan_preprocess(train_x, train_y)
     model = BNLNN(7, 1)
     training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn/', eval_num=50)
 
 
+def training_LNN_startup():
+    train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
+    train_x, train_y = preprocess_from_startup(train_x, train_y)
+    model = LNN(9, 1)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/lnn_startup/', eval_num=50)
+
+
+def training_BNLNN_startup():
+    train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
+    train_x, train_y = preprocess_from_startup(train_x, train_y)
+    model = BNLNN(9, 1)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn_startup/', eval_num=50)
+
+
 if __name__ == '__main__':
+    training_LNN_startup()
     training_LNN()
     training_BNLNN()
