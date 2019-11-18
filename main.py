@@ -65,6 +65,40 @@ class LNN(nn.Module):
         self.load_state_dict(torch.load(f'{load_path}/lnn.pth'))
 
 
+class ResLNN(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(ResLNN, self).__init__()
+        DEPTH = 16
+        self.fc_input = nn.Linear(input_dim, 256)
+        self.fc_array = nn.ModuleList([nn.Linear(256, 256) for _ in range(DEPTH - 2)])
+        self.fc_output = nn.Linear(256, output_dim)
+
+    def forward(self, x):
+        x = F.dropout(x, training=self.training)
+        y = F.relu(self.fc_input(x))
+        res = y
+        for n, layer in enumerate(self.fc_array):
+            y = F.dropout(y, training=self.training)
+            y = F.relu(layer(y))
+            if n % 2 == 2 and n != 0:
+                y += res
+                res = y
+        y = F.dropout(y, training=self.training)
+        y = self.fc_output(y)
+        return y
+
+    def pred(self, x):
+        x = torch.from_numpy(x).float()
+        return self.forward(x).detach().numpy()
+
+    def save(self, save_path):
+        Path(save_path).mkdir(parents=True, exist_ok=True)
+        torch.save(self.state_dict(), f'{save_path}/lnn.pth')
+
+    def load(self, load_path):
+        self.load_state_dict(torch.load(f'{load_path}/lnn.pth'))
+
+
 class BNLNN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(BNLNN, self).__init__()
@@ -78,6 +112,40 @@ class BNLNN(nn.Module):
         y = F.relu(self.fc_input(x))
         for layer, bn in zip(self.fc_array, self.bn_array):
             y = F.relu(bn(layer(y)))
+        y = self.fc_output(y)
+        return y
+
+    def pred(self, x):
+        x = torch.from_numpy(x).float()
+        return self.forward(x).detach().numpy()
+
+    def save(self, save_path):
+        Path(save_path).mkdir(parents=True, exist_ok=True)
+        torch.save(self.state_dict(), f'{save_path}/bnlnn.pth')
+
+    def load(self, load_path):
+        self.load_state_dict(torch.load(f'{load_path}/bnlnn.pth'))
+
+
+class ResBNLNN(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(ResBNLNN, self).__init__()
+        DEPTH = 16
+        self.fc_input = nn.Linear(input_dim, 256)
+        self.fc_array = nn.ModuleList([nn.Linear(256, 256) for _ in range(DEPTH - 2)])
+        self.bn_array = nn.ModuleList([nn.BatchNorm1d(256) for _ in range(DEPTH - 2)])
+        self.fc_output = nn.Linear(256, output_dim)
+
+    def forward(self, x):
+        y = F.relu(self.fc_input(x))
+        res = y
+        for n, layer, bn in enumerate(zip(self.fc_array, self.bn_array)):
+            y = F.relu(bn(layer(y)))
+
+            if n % 2 == 2 and n != 0:
+                y += res
+                res = y
+
         y = self.fc_output(y)
         return y
 
@@ -245,31 +313,47 @@ def training_LNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = remove_nan_preprocess(train_x, train_y)
     model = LNN(7, 1)
-    training(model, train_x.values, train_y.values, 1000, 64, 'models/lnn/', eval_num=5)
+    training(model, train_x.values, train_y.values, 1000, 128, 'models/lnn/', eval_num=5)
 
 
 def training_BNLNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = remove_nan_preprocess(train_x, train_y)
     model = BNLNN(7, 1)
-    training(model, train_x.values, train_y.values, 500, 64, 'models/bnlnn/', eval_num=50)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn/', eval_num=50)
 
 
 def training_LNN_startup():
     train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_from_startup(train_x, train_y)
     model = LNN(9, 1)
-    training(model, train_x.values, train_y.values, 500, 64, 'models/lnn_startup/', eval_num=50)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/lnn_startup/', eval_num=50)
 
 
 def training_BNLNN_startup():
     train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_from_startup(train_x, train_y)
     model = BNLNN(9, 1)
-    training(model, train_x.values, train_y.values, 500, 64, 'models/bnlnn_startup/', eval_num=50)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn_startup/', eval_num=50)
+
+
+def training_ResLNN_startup():
+    train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
+    train_x, train_y = preprocess_from_startup(train_x, train_y)
+    model = ResLNN(9, 1)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/Reslnn_startup/', eval_num=50)
+
+
+def training_ResBNLNN_startup():
+    train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
+    train_x, train_y = preprocess_from_startup(train_x, train_y)
+    model = ResBNLNN(9, 1)
+    training(model, train_x.values, train_y.values, 500, 128, 'models/Resbnlnn_startup/', eval_num=50)
 
 
 if __name__ == '__main__':
+    training_ResLNN_startup()
+    training_ResBNLNN_startup()
     training_LNN_startup()
     training_BNLNN_startup()
     # training_LNN()
