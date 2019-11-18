@@ -233,8 +233,8 @@ def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20
             eval = model.pred(train_x)
             eval = np.round(eval)
             y = np.reshape(train_y, eval.shape)
-            res = np.abs(eval - y)
-            ratio = 1.0 - np.sum(res, dtype=np.float32) / len(train_y)
+            res = np.sum(np.abs(eval - y), dtype=np.float32)
+            ratio = 1.0 - res / len(train_y)
             print(f'{epoch} test percentage {ratio}')
 
             model.save(save_path)
@@ -245,28 +245,28 @@ def training_LNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = remove_nan_preprocess(train_x, train_y)
     model = LNN(7, 1)
-    training(model, train_x.values, train_y.values, 500, 128, 'models/lnn/', eval_num=50)
+    training(model, train_x.values, train_y.values, 1000, 64, 'models/lnn/', eval_num=5)
 
 
 def training_BNLNN():
     train_x, train_y = load_data(['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = remove_nan_preprocess(train_x, train_y)
     model = BNLNN(7, 1)
-    training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn/', eval_num=50)
+    training(model, train_x.values, train_y.values, 500, 64, 'models/bnlnn/', eval_num=50)
 
 
 def training_LNN_startup():
     train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_from_startup(train_x, train_y)
     model = LNN(9, 1)
-    training(model, train_x.values, train_y.values, 500, 128, 'models/lnn_startup/', eval_num=50)
+    training(model, train_x.values, train_y.values, 500, 64, 'models/lnn_startup/', eval_num=50)
 
 
 def training_BNLNN_startup():
     train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_from_startup(train_x, train_y)
     model = BNLNN(9, 1)
-    training(model, train_x.values, train_y.values, 500, 128, 'models/bnlnn_startup/', eval_num=50)
+    training(model, train_x.values, train_y.values, 500, 64, 'models/bnlnn_startup/', eval_num=50)
 
 
 if __name__ == '__main__':
