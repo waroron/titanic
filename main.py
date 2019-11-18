@@ -271,5 +271,6 @@ def training_BNLNN_startup():
 
 if __name__ == '__main__':
     training_LNN_startup()
-    training_LNN()
-    training_BNLNN()
+    training_BNLNN_startup()
+    # training_LNN()
+    # training_BNLNN()
