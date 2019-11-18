@@ -68,7 +68,7 @@ class LNN(nn.Module):
 class BNLNN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(BNLNN, self).__init__()
-        DEPTH = 8
+        DEPTH = 16
         self.fc_input = nn.Linear(input_dim, 256)
         self.fc_array = nn.ModuleList([nn.Linear(256, 256) for _ in range(DEPTH - 2)])
         self.bn_array = nn.ModuleList([nn.BatchNorm1d(256) for _ in range(DEPTH - 2)])
@@ -270,7 +270,7 @@ def training_BNLNN_startup():
 
 
 if __name__ == '__main__':
-    # training_LNN_startup()
+    training_LNN_startup()
     training_BNLNN_startup()
     # training_LNN()
     # training_BNLNN()
