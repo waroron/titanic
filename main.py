@@ -1,4 +1,4 @@
-# %% data import
+# data import
 import pandas as pd
 import numpy as np
 import torch
@@ -10,7 +10,7 @@ from torch.autograd import Variable
 from pathlib import Path
 
 
-# %% import data
+# import data
 def load_data(enable_labels):
     train_data = pd.read_csv('titanic/train.csv')
     # test_data = pd.read_csv('titanic/test.csv')
@@ -24,7 +24,6 @@ def load_data(enable_labels):
     return train_x, train_y
 
 
-# %%
 def null_table(df):
     null_val = df.isnull().sum()
     percent = 100 * df.isnull().sum() / len(df)
@@ -34,7 +33,6 @@ def null_table(df):
     return kesson_table_ren_columns
 
 
-# %%
 class LNN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(LNN, self).__init__()
@@ -130,21 +128,24 @@ class BNLNN(nn.Module):
 class ResBNLNN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(ResBNLNN, self).__init__()
-        DEPTH = 16
-        self.fc_input = nn.Linear(input_dim, 256)
-        self.fc_array = nn.ModuleList([nn.Linear(256, 256) for _ in range(DEPTH - 2)])
-        self.bn_array = nn.ModuleList([nn.BatchNorm1d(256) for _ in range(DEPTH - 2)])
-        self.fc_output = nn.Linear(256, output_dim)
+        DEPTH = 6
+        UNITS = 128
+        self.fc_input = nn.Linear(input_dim, UNITS)
+        self.fc_array = nn.ModuleList([nn.Linear(UNITS, UNITS) for _ in range(DEPTH - 2)])
+        self.bn_array = nn.ModuleList([nn.BatchNorm1d(UNITS) for _ in range(DEPTH - 2)])
+        self.fc_output = nn.Linear(UNITS, output_dim)
 
     def forward(self, x):
         y = F.relu(self.fc_input(x))
         res = y
-        for n, layer, bn in enumerate(zip(self.fc_array, self.bn_array)):
+        n = 0
+        for layer, bn in zip(self.fc_array, self.bn_array):
             y = F.relu(bn(layer(y)))
 
             if n % 2 == 2 and n != 0:
                 y += res
                 res = y
+            n += 1
 
         y = self.fc_output(y)
         return y
@@ -274,7 +275,7 @@ def train(model, loss_func, optimizer, trX, trY):
     return loss.data
 
 
-def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20):
+def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20, visualize_num=10):
     train_ = data.TensorDataset(torch.from_numpy(train_x).float(),
                                 torch.from_numpy(train_y).float())
     train_iter = torch.utils.data.DataLoader(train_, batch_size=batch_size, shuffle=True)
@@ -292,7 +293,9 @@ def training(model, train_x, train_y, epochs, batch_size, save_path, eval_num=20
             inputs = use_gpu(inputs)
             labels = use_gpu(labels)
             loss += train(model, criterion, optimizer, inputs, labels)
-        print(f'epoch {epoch}: loss {loss / batch_size}')
+
+        if epoch % visualize_num == 0:
+            print(f'epoch {epoch}: loss {loss / batch_size}')
 
         if epoch % eval_num == 0:
             model.cpu()
@@ -347,14 +350,13 @@ def training_ResBNLNN_startup():
     train_x, train_y = load_data(['Name', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'])
     train_x, train_y = preprocess_from_startup(train_x, train_y)
     model = ResBNLNN(9, 1)
-    training(model, train_x.values, train_y.values, 500, 128, 'models/Resbnlnn_startup/', eval_num=50)
+    training(model, train_x.values, train_y.values, 10000, 128, 'models/Resbnlnn_startup/', eval_num=200)
 
 
 if __name__ == '__main__':
-    training_ResLNN_startup()
+    # training_ResLNN_startup()
     training_ResBNLNN_startup()
-    training_LNN_startup()
-    training_BNLNN_startup()
+    # training_LNN_startup()
+    # training_BNLNN_startup()
     # training_LNN()
     # training_BNLNN()
-    
